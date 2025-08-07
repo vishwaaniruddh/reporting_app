@@ -63,7 +63,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('pgsql')->dropIfExists('alerts');
-        DB::connection('pgsql')->statement('DROP SEQUENCE IF EXISTS alerts_id_seq');
+        // Schema::connection('pgsql')->dropIfExists('alerts');
+        // DB::connection('pgsql')->statement('DROP SEQUENCE IF EXISTS alerts_id_seq');
     }
 };

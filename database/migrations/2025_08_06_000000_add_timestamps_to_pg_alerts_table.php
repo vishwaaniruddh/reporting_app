@@ -16,8 +16,8 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection('pgsql')->table('alerts', function (Blueprint $table) {
-            $table->dropColumn(['created_at', 'updated_at']);
-        });
+        // Schema::connection('pgsql')->table('alerts', function (Blueprint $table) {
+        //     $table->dropColumn(['created_at', 'updated_at']);
+        // });
     }
 };

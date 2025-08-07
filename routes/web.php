@@ -18,9 +18,9 @@ Route::get('/', function () {
         : redirect()->route('login');
 })->name('home');
 
-// Reports Routes
-Route::resource('reports', \App\Http\Controllers\ReportsController::class);
-Route::resource('sites', \App\Http\Controllers\SitesController::class);
+// Reports Routes (protected by authentication)
+Route::resource('reports', \App\Http\Controllers\ReportsController::class)->middleware('auth');
+Route::resource('sites', \App\Http\Controllers\SitesController::class)->middleware('auth');
 
 // Dashboard (protected)
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
@@ -46,6 +46,13 @@ Route::get('/clients/{client}/edit', [App\Http\Controllers\ClientController::cla
 Route::put('/clients/{client}', [App\Http\Controllers\ClientController::class, 'update'])->middleware('auth')->name('clients.update');
 
 Route::delete('/clients/{client}', [App\Http\Controllers\ClientController::class, 'destroy'])->middleware('auth')->name('clients.destroy');
+
+
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::resource('users', \App\Http\Controllers\Admin\UserController::class);
+});
+Route::post('users/{user}/change-password', [\App\Http\Controllers\Admin\UserController::class, 'changePassword'])
+    ->name('admin.users.change-password');
 
 
 // // Reports

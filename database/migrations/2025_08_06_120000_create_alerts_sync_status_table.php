@@ -28,6 +28,6 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::connection('pgsql')->dropIfExists('alerts_sync_status');
+        // Schema::connection('pgsql')->dropIfExists('alerts_sync_status');
     }
 };

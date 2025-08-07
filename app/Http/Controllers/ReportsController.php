@@ -428,16 +428,16 @@ class ReportsController extends Controller
             });
         }
 
-        if ($request->filled('from_date') || $request->filled('to_date')) {
+        if ($request->filled('from_date')) {
             $query->where(function($q) use ($request) {
                 if ($request->filled('from_date')) {
                     $fromDate = date('Y-m-d 00:00:00', strtotime($request->from_date));
-                    $q->where('createtime', '>=', $fromDate);
+                    $q->where('receivedtime', '>=', $fromDate);
                 }
                 
-                if ($request->filled('to_date')) {
-                    $toDate = date('Y-m-d 23:59:59', strtotime($request->to_date));
-                    $q->where('createtime', '<=', $toDate);
+                if ($request->filled('from_date')) {
+                    $toDate = date('Y-m-d 23:59:59', strtotime($request->from_date));
+                    $q->where('receivedtime', '<=', $toDate);
                 }
             });
         }

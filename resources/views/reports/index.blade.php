@@ -73,11 +73,11 @@
                                value="{{ request('from_date') }}">
                     </div>
                     
-                    <div class="col-md-2">
+                    <!-- <div class="col-md-2">
                         <label class="form-label">To Date</label>
                         <input type="date" name="to_date" class="form-control form-control-sm" 
                                value="{{ request('to_date') }}">
-                    </div>
+                    </div> -->
                     
                     <div class="col-12">
                         <div class="d-flex gap-2">

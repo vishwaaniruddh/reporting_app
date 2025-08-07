@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::connection('pgsql')->dropIfExists('sync_log');
+        // Schema::connection('pgsql')->dropIfExists('sync_log');
     }
 }; 
