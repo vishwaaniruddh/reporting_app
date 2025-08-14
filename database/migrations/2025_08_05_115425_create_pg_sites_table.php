@@ -13,7 +13,7 @@ return new class extends Migration
     public function up(): void
     {
         // Create the sequence with a higher start value to accommodate existing IDs
-        DB::connection('pgsql')->statement('CREATE SEQUENCE sites_sn_seq START WITH 1000');
+        // DB::connection('pgsql')->statement('CREATE SEQUENCE IF NOT EXISTS sites_sn_seq START WITH 1000');
         
         Schema::connection('pgsql')->create('sites', function (Blueprint $table) {
             $table->integer('SN')->primary();
@@ -73,7 +73,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        // Schema::connection('pgsql')->dropIfExists('sites');
-        // DB::connection('pgsql')->statement('DROP SEQUENCE IF EXISTS sites_sn_seq');
+        Schema::connection('pgsql')->dropIfExists('sites');
+        DB::connection('pgsql')->statement('DROP SEQUENCE IF EXISTS sites_sn_seq');
     }
 };

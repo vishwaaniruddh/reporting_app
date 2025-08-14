@@ -3,7 +3,10 @@
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\DashboardController;
-use Illuminate\Http\Request;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\ReportsController;
+use App\Http\Controllers\SitesController;
+use App\Http\Controllers\ClientController;
 
 /*
 |--------------------------------------------------------------------------
@@ -18,55 +21,66 @@ Route::get('/', function () {
         : redirect()->route('login');
 })->name('home');
 
-// Reports Routes (protected by authentication)
-Route::resource('reports', \App\Http\Controllers\ReportsController::class)->middleware('auth');
-Route::resource('sites', \App\Http\Controllers\SitesController::class)->middleware('auth');
-
-// Dashboard (protected)
-Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth')->name('dashboard');
-
 // Auth routes (login, register, logout, etc.)
 Auth::routes();
 
+// Dashboard (protected)
+Route::get('/dashboard', [DashboardController::class, 'index'])
+->middleware('auth')
+->name('dashboard');
 
+// Protected routes with permission middleware
+Route::middleware(['auth'])->group(function () {
+    // Reports Routes
+    Route::middleware(['permission:reports.view'])->group(function () {
+        Route::get('/reports', [ReportsController::class, 'index'])->name('reports.index');
+        Route::get('/reports/{report}', [ReportsController::class, 'show'])->name('reports.show');
+    });
+
+    Route::middleware(['permission:reports.manage'])->group(function () {
+        Route::resource('reports', ReportsController::class)->except(['index', 'show']);
+    });
+
+    // Sites Routes
+    Route::middleware(['permission:sites.view'])->group(function () {
+        Route::get('/sites', [SitesController::class, 'index'])->name('sites.index');
+        Route::get('/sites/{site}', [SitesController::class, 'show'])->name('sites.show');
+    });
+
+    Route::middleware(['permission:sites.manage'])->group(function () {
+        Route::resource('sites', SitesController::class)->except(['index', 'show']);
+    });
+
+    // Clients Routes
+    Route::middleware(['permission:clients.view'])->group(function () {
+        Route::get('/clients', [ClientController::class, 'index'])->name('clients.index');
+        Route::get('/clients/{client}', [ClientController::class, 'show'])->name('clients.show');
+    });
+
+    Route::middleware(['permission:clients.manage'])->group(function () {
+        Route::resource('clients', ClientController::class)->except(['index', 'show']);
+    });
+
+    // Admin Users Management
+    Route::prefix('admin')->name('admin.')->middleware(['permission:users.manage'])->group(function () {
+        // User CRUD
+        Route::resource('users', UserController::class);
+        
+        // Additional user actions
+        Route::post('users/{user}/change-password', [UserController::class, 'changePassword'])
+            ->name('users.change-password');
+            
+        Route::get('users/{user}/permissions', [UserController::class, 'editPermissions'])
+            ->name('users.permissions.edit')
+            ->middleware('permission:permissions.assign');
+            
+        Route::post('users/{user}/permissions', [UserController::class, 'updatePermissions'])
+            ->name('users.permissions.update')
+            ->middleware('permission:permissions.assign');
+    });
+});
 
 // Optional: HomeController if used by Auth::routes() default redirect
-Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])->middleware('auth');
-
-Route::get('/clients', [App\Http\Controllers\ClientController::class, 'index'])->middleware('auth')->name('clients.index');
-
-Route::get('/clients/create', [App\Http\Controllers\ClientController::class, 'create'])->middleware('auth')->name('clients.create');
-
-Route::post('/clients', [App\Http\Controllers\ClientController::class, 'store'])->middleware('auth')->name('clients.store');
-
-Route::get('/clients/{client}', [App\Http\Controllers\ClientController::class, 'show'])->middleware('auth')->name('clients.show');
-
-Route::get('/clients/{client}/edit', [App\Http\Controllers\ClientController::class, 'edit'])->middleware('auth')->name('clients.edit');
-
-Route::put('/clients/{client}', [App\Http\Controllers\ClientController::class, 'update'])->middleware('auth')->name('clients.update');
-
-Route::delete('/clients/{client}', [App\Http\Controllers\ClientController::class, 'destroy'])->middleware('auth')->name('clients.destroy');
-
-
-Route::prefix('admin')->name('admin.')->group(function () {
-    Route::resource('users', \App\Http\Controllers\Admin\UserController::class);
-});
-Route::post('users/{user}/change-password', [\App\Http\Controllers\Admin\UserController::class, 'changePassword'])
-    ->name('admin.users.change-password');
-
-
-// // Reports
-
-// Route::get('/reports', [App\Http\Controllers\ReportController::class, 'index'])->middleware('auth')->name('reports.index');
-
-// Route::get('/reports/create', [App\Http\Controllers\ReportController::class, 'create'])->middleware('auth')->name('reports.create');
-
-// Route::post('/reports', [App\Http\Controllers\ReportController::class, 'store'])->middleware('auth')->name('reports.store');
-
-// Route::get('/reports/{client}', [App\Http\Controllers\ReportController::class, 'show'])->middleware('auth')->name('reports.show');
-
-// Route::get('/reports/{client}/edit', [App\Http\Controllers\ReportController::class, 'edit'])->middleware('auth')->name('reports.edit');
-
-// Route::put('/reports/{client}', [App\Http\Controllers\ReportController::class, 'update'])->middleware('auth')->name('reports.update');
-
-// Route::delete('/reports/{client}', [App\Http\Controllers\ReportController::class, 'destroy'])->middleware('auth')->name('reports.destroy');
+Route::get('/home', [App\Http\Controllers\HomeController::class, 'index'])
+    ->middleware('auth')
+    ->name('home');

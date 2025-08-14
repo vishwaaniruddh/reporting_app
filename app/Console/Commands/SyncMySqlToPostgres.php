@@ -11,7 +11,8 @@ class SyncMySqlToPostgres extends Command
     protected $signature = 'sync:mysql-to-postgres
                           {--sites : Sync sites table}
                           {--alerts : Sync alerts table}
-                          {--ai-alerts : Sync ai_alerts table}
+                          {--ai_alerts : Sync ai_alerts table}
+                          {--ai_alerts_alive : Sync ai_alerts_alive table}
                           {--reports : Sync reports table}
                           {--all : Sync all tables}
                           {--from= : From date for alerts/reports (format: Y-m-d)}
@@ -57,7 +58,7 @@ class SyncMySqlToPostgres extends Command
             }
 
             // Sync AI Alerts
-            if ($this->option('ai-alerts') || $this->option('all')) {
+            if ($this->option('ai_alerts') || $this->option('all')) {
                 $fromDate = $this->option('from') ? Carbon::parse($this->option('from')) : null;
                 $toDate = $this->option('to') ? Carbon::parse($this->option('to')) : null;
 
@@ -67,6 +68,23 @@ class SyncMySqlToPostgres extends Command
                     $toDate,
                     function($current, $total, $percentage) {
                         $this->output->write("\r📊 AI Alerts Progress: {$current}/{$total} ({$percentage}%)");
+                    },
+                    $forceFull
+                );
+                $this->info("\n✅ Completed! Synced {$totalAiAlerts} AI alerts.");
+                $totalSynced += $totalAiAlerts;
+            }
+
+            if ($this->option('ai_alerts_alive') || $this->option('all')) {
+                $fromDate = $this->option('from') ? Carbon::parse($this->option('from')) : null;
+                $toDate = $this->option('to') ? Carbon::parse($this->option('to')) : null;
+
+                $this->info('🤖 Syncing AI Alerts Alive ...');
+                $totalAiAlerts = $this->syncService->syncAiAliveAlerts(
+                    $fromDate, 
+                    $toDate,
+                    function($current, $total, $percentage) {
+                        $this->output->write("\r📊 AI Alerts Alive Progress: {$current}/{$total} ({$percentage}%)");
                     },
                     $forceFull
                 );

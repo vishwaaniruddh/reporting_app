@@ -50,7 +50,7 @@
             padding: 7% 2%;
         }
         :root {
-            --sidebar-width: 280px;
+            --sidebar-width: 240px;
             --navbar-height: 60px;
             --primary-color: #4361ee;
         }
@@ -76,7 +76,7 @@
             position: fixed;
             left: 0;
             top: 0;
-            background: white;
+            background: black;
             box-shadow: 2px 0 10px rgba(0, 0, 0, 0.05);
             z-index: 1000;
             overflow-y: auto;

@@ -1,5 +1,7 @@
 @extends('layouts.app')
 
+        
+
 @section('styles')
 {{-- Add some custom styles for a more polished look --}}
 <style>
@@ -35,10 +37,9 @@
 </style>
 @endsection
 
+
 @section('content')
 <div class="container-fluid py-4">
-
-
 </div>
 @endsection
 

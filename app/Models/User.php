@@ -39,10 +39,53 @@ class User extends Authenticatable
         return $this->belongsTo(Role::class);
     }
 
-    public function hasPermission($permissionSlug)
+    //     public function hasPermission($permissionSlug){
+//     // Admin has all permissions
+//     if ($this->role === 'admin') {
+//         return true;
+//     }
+
+    //     // Check if role exists and has permissions loaded
+//     if (!$this->role || !$this->relationLoaded('role') || !$this->role->relationLoaded('permissions')) {
+//         $this->load('role.permissions');
+//     }
+
+    //     // Check role permissions
+//     return $this->role->permissions->contains('slug', $permissionSlug);
+// }
+
+    public function hasPermission($permissionSlug): bool
     {
-        return $this->role->permissions()->where('slug', $permissionSlug)->exists();
+        // Debugging - remove after testing
+        // \Log::info('Checking permission', [
+        //     'user_id' => $this->id,
+        //     'role_id' => $this->role_id,
+        //     'permission' => $permissionSlug
+        // ]);
+
+        // Admin has all permissions
+        if ($this->role && $this->role->name === 'admin') {
+            return true;
+        }
+
+        // Check if role and permissions are loaded
+        if (!$this->relationLoaded('role.permissions')) {
+            $this->load('role.permissions');
+        }
+
+        // Check permissions
+        return $this->role && $this->role->permissions->contains('slug', $permissionSlug);
     }
+    public function hasAnyPermission(array $permissions): bool
+    {
+        foreach ($permissions as $permission) {
+            if ($this->hasPermission($permission)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
 
     /**
      * Get the attributes that should be cast.

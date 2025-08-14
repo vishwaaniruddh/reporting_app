@@ -22,7 +22,8 @@ class SitesController extends Controller
                 'sites.State',
                 'sites.Zone',
                 'sites.DVRIP',
-                'sites.Panel_Make'
+                'sites.Panel_Make',
+                'sites.DVRName',
             ]);
 
         // Search functionality

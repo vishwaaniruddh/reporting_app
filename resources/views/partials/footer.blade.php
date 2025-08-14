@@ -10,3 +10,29 @@
         </div>
     </div>
 </footer>
+
+<script>
+    // Fullscreen toggle
+    const fullscreenToggle = document.getElementById('fullscreenToggle');
+    const fullscreenIcon = document.getElementById('fullscreenIcon');
+
+    fullscreenToggle.addEventListener('click', () => {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen();
+            fullscreenIcon.classList.replace('fa-expand', 'fa-compress');
+        } else {
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+                fullscreenIcon.classList.replace('fa-compress', 'fa-expand');
+            }
+        }
+    });
+
+
+
+const menuToggle = document.getElementById('menuToggle');
+menuToggle.addEventListener('click', () => {
+    document.body.classList.toggle('sidebar-collapsed');
+});
+
+</script>

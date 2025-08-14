@@ -66,7 +66,7 @@ class Kernel extends ConsoleKernel
     protected function schedule(Schedule $schedule): void
     {
         // Near-realtime alerts sync every minute
-        $schedule->command('sync:mysql-to-postgres --alerts')
+        $schedule->command('sync:mysql-to-postgres --alerts --ai_alerts --ai_alerts_alive')
                 ->everyMinute()
                 ->withoutOverlapping()
                 ->runInBackground()

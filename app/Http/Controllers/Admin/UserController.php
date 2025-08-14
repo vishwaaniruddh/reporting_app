@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use App\Models\Permission;
 
 class UserController extends Controller
 {
@@ -14,7 +15,9 @@ class UserController extends Controller
      */
     public function index()
     {
-        $users = User::latest()->paginate(10);
+        // $users = User::latest()->paginate(10);
+        $users = User::with('role.permissions')->paginate(10);
+
         return view('admin.users.index', compact('users'));
     }
 
@@ -36,6 +39,7 @@ class UserController extends Controller
             'email' => 'required|email|unique:users,email',
             'password' => 'required|min:8|confirmed',
             'role' => 'required|in:admin,manager,user',
+            'role_id' => 'required|integer|max:6',
         ]);
 
         User::create($validated);
@@ -105,4 +109,15 @@ class UserController extends Controller
     return redirect()->back()->with('success', 'Password updated successfully');
 }
 
+public function editPermissions(User $user)
+{
+    $allPermissions = Permission::all();
+    return view('admin.users.edit-permissions', compact('user', 'allPermissions'));
+}
+
+public function updatePermissions(Request $request, User $user)
+{
+    $user->permissions()->sync($request->permissions ?? []);
+    return redirect()->back()->with('success', 'Permissions updated successfully');
+}
 }

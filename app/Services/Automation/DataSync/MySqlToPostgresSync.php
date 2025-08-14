@@ -13,7 +13,7 @@ use Exception;
 
 class MySqlToPostgresSync
 {
-    public $batchSize = 1000; // Increased for better performance
+    public $batchSize = 100; // Increased for better performance
     protected $maxExecutionTime = 3600; // 1 hour max execution
     protected $memoryLimit = '2G'; // 2GB memory limit
 
@@ -38,36 +38,42 @@ class MySqlToPostgresSync
             ]);
 
             // Get last synced timestamp from sync_log table
-            $lastSyncedAt = $this->getLastSyncTimestamp('ai_alerts');
-            
-            if (!$forceFull && $lastSyncedAt) {
-                $fromDate = $lastSyncedAt;
+            $lastSyncedId = $this->getLastSyncedAlertId('ai_alerts');
+
+            Log::info("ID: {$lastSyncedId}");
+
+            if (!$forceFull && $lastSyncedId > 0) {
+                Log::info("Resuming AI alerts sync from ID: {$lastSyncedId}");
+            } else {
+                $lastSyncedId = 0;
+                Log::info("Starting fresh alerts sync");
             }
 
-            // Get total count for progress tracking
+            // Get total count for progress tracking (only new records)
             $totalCount = DB::connection('mysql')
                 ->table('ai_alerts')
-                ->when($fromDate, fn($q) => $q->where('receivedtime', '>=', $fromDate))
-                ->when($toDate, fn($q) => $q->where('receivedtime', '<=', $toDate))
+                ->where('id', '>', $lastSyncedId)
+                ->when($fromDate, fn($q) => $q->where('createtime', '>=', $fromDate))
+                ->when($toDate, fn($q) => $q->where('createtime', '<=', $toDate))
                 ->count();
 
             if ($totalCount === 0) {
-                Log::info('No new AI alerts to sync');
+                Log::info('No new alerts to sync');
                 return 0;
             }
 
-            $lastSyncedId = 0;
             $totalSynced = 0;
             $startTime = microtime(true);
+            $currentLastSyncedId = $lastSyncedId;
 
             do {
-                // Use cursor-based pagination for better performance
+                // Fetch new alerts from MySQL (only records with ID > last_synced_id)
                 $alerts = DB::connection('mysql')
                     ->table('ai_alerts')
                     ->select('*')
-                    ->where('id', '>', $lastSyncedId)
-                    ->when($fromDate, fn($q) => $q->where('receivedtime', '>=', $fromDate))
-                    ->when($toDate, fn($q) => $q->where('receivedtime', '<=', $toDate))
+                    ->where('id', '>', $currentLastSyncedId)
+                    ->when($fromDate, fn($q) => $q->where('createtime', '>=', $fromDate))
+                    ->when($toDate, fn($q) => $q->where('createtime', '<=', $toDate))
                     ->orderBy('id')
                     ->limit($this->batchSize)
                     ->get();
@@ -76,12 +82,15 @@ class MySqlToPostgresSync
                     break;
                 }
 
-                // Use bulk insert for better performance
-                $this->bulkInsertAiAlerts($alerts);
+                // Use bulk insert for better performance (no duplicate checking)
+                $this->bulkInsertAIAlerts($alerts);
 
                 $batchCount = $alerts->count();
                 $totalSynced += $batchCount;
-                $lastSyncedId = $alerts->last()->id;
+                $currentLastSyncedId = $alerts->last()->id;
+
+                // Update monitoring table after each batch
+                $this->updateAlertsSyncStatus($currentLastSyncedId, 'ai_alerts');
 
                 // Report progress
                 if ($progress) {
@@ -96,20 +105,21 @@ class MySqlToPostgresSync
                     Log::info("AI Alerts sync progress", [
                         'synced' => $totalSynced,
                         'total' => $totalCount,
+                        'last_synced_id' => $currentLastSyncedId,
                         'rate' => round($rate, 2) . ' records/sec'
                     ]);
                 }
 
-            } while (true);
-
-            // Update sync log
-            $this->updateSyncLog('ai_alerts', $totalSynced);
+            } while ($alerts->count() === $this->batchSize);
 
             $elapsed = microtime(true) - $startTime;
+            $rate = $totalSynced / $elapsed;
+
             Log::info('AI Alerts sync completed', [
                 'total_synced' => $totalSynced,
+                'last_synced_id' => $currentLastSyncedId,
                 'elapsed_time' => round($elapsed, 2) . ' seconds',
-                'rate' => round($totalSynced / $elapsed, 2) . ' records/sec'
+                'rate' => round($rate, 2) . ' records/sec'
             ]);
 
             return $totalSynced;
@@ -121,11 +131,113 @@ class MySqlToPostgresSync
             ]);
             throw $e;
         }
+
     }
 
-    /**
-     * Enhanced sync for alerts table with incremental updates using monitoring table
-     */
+    public function syncAiAliveAlerts($fromDate = null, $toDate = null, $progress = null, $forceFull = false)
+    {
+        try {
+            Log::info('Starting AI Alive Alerts sync', [
+                'from_date' => $fromDate,
+                'to_date' => $toDate,
+                'force_full' => $forceFull
+            ]);
+
+            // Get last synced timestamp from sync_log table
+            $lastSyncedId = $this->getLastSyncedAlertId('ai_alerts_alive');
+
+            if (!$forceFull && $lastSyncedId > 0) {
+                Log::info("Resuming AI Alive alerts sync from ID: {$lastSyncedId}");
+            } else {
+                $lastSyncedId = 0;
+                Log::info("Starting fresh alerts sync");
+            }
+
+            // Get total count for progress tracking (only new records)
+            $totalCount = DB::connection('mysql')
+                ->table('ai_alerts_alive')
+                ->where('id', '>', $lastSyncedId)
+                ->when($fromDate, fn($q) => $q->where('createtime', '>=', $fromDate))
+                ->when($toDate, fn($q) => $q->where('createtime', '<=', $toDate))
+                ->count();
+
+            if ($totalCount === 0) {
+                Log::info('No new alerts to sync');
+                return 0;
+            }
+
+            $totalSynced = 0;
+            $startTime = microtime(true);
+            $currentLastSyncedId = $lastSyncedId;
+
+            do {
+                // Fetch new alerts from MySQL (only records with ID > last_synced_id)
+                $alerts = DB::connection('mysql')
+                    ->table('ai_alerts_alive')
+                    ->select('*')
+                    ->where('id', '>', $currentLastSyncedId)
+                    ->when($fromDate, fn($q) => $q->where('createtime', '>=', $fromDate))
+                    ->when($toDate, fn($q) => $q->where('createtime', '<=', $toDate))
+                    ->orderBy('id')
+                    ->limit($this->batchSize)
+                    ->get();
+
+                if ($alerts->isEmpty()) {
+                    break;
+                }
+
+                // Use bulk insert for better performance (no duplicate checking)
+                $this->bulkInsertAIAliveAlerts($alerts);
+
+                $batchCount = $alerts->count();
+                $totalSynced += $batchCount;
+                $currentLastSyncedId = $alerts->last()->id;
+
+                // Update monitoring table after each batch
+                $this->updateAlertsSyncStatus($currentLastSyncedId, 'ai_alerts_alive');
+
+                // Report progress
+                if ($progress) {
+                    $percentComplete = round(($totalSynced / $totalCount) * 100, 2);
+                    $progress($totalSynced, $totalCount, $percentComplete);
+                }
+
+                // Log progress every 10,000 records
+                if ($totalSynced % 10000 === 0) {
+                    $elapsed = microtime(true) - $startTime;
+                    $rate = $totalSynced / $elapsed;
+                    Log::info("AI Alive Alerts sync progress", [
+                        'synced' => $totalSynced,
+                        'total' => $totalCount,
+                        'last_synced_id' => $currentLastSyncedId,
+                        'rate' => round($rate, 2) . ' records/sec'
+                    ]);
+                }
+
+            } while ($alerts->count() === $this->batchSize);
+
+            $elapsed = microtime(true) - $startTime;
+            $rate = $totalSynced / $elapsed;
+
+            Log::info('AI Alive Alerts sync completed', [
+                'total_synced' => $totalSynced,
+                'last_synced_id' => $currentLastSyncedId,
+                'elapsed_time' => round($elapsed, 2) . ' seconds',
+                'rate' => round($rate, 2) . ' records/sec'
+            ]);
+
+            return $totalSynced;
+
+        } catch (Exception $e) {
+            Log::error('AI Alive Alerts sync failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
+
+    }
+
     public function syncAlerts($fromDate = null, $toDate = null, $progress = null, $forceFull = false)
     {
         try {
@@ -136,8 +248,8 @@ class MySqlToPostgresSync
             ]);
 
             // Get last synced ID from alerts_sync_status table
-            $lastSyncedId = $this->getLastSyncedAlertId();
-            
+            $lastSyncedId = $this->getLastSyncedAlertId('alerts');
+
             if (!$forceFull && $lastSyncedId > 0) {
                 Log::info("Resuming alerts sync from ID: {$lastSyncedId}");
             } else {
@@ -186,7 +298,7 @@ class MySqlToPostgresSync
                 $currentLastSyncedId = $alerts->last()->id;
 
                 // Update monitoring table after each batch
-                $this->updateAlertsSyncStatus($currentLastSyncedId);
+                $this->updateAlertsSyncStatus($currentLastSyncedId, 'alerts');
 
                 // Report progress
                 if ($progress) {
@@ -229,9 +341,6 @@ class MySqlToPostgresSync
         }
     }
 
-    /**
-     * Bulk insert for better performance
-     */
     protected function bulkInsertAlerts($alerts)
     {
         $values = [];
@@ -274,21 +383,58 @@ class MySqlToPostgresSync
                 'seqno' => $alert->seqno,
                 'zone' => $alert->zone,
                 'alarm' => $alert->alarm,
-                'alerttype' => $alert->alerttype,
                 'createtime' => $alert->createtime,
                 'receivedtime' => $alert->receivedtime,
-                'closedtime' => $alert->closedtime,
-                'closedBy' => $alert->closedBy,
                 'comment' => $alert->comment,
-                'sendip' => $alert->sendip,
+                'status' => $alert->status,
                 'sendtoclient' => $alert->sendtoclient,
-                'created_at' => now(),
-                'updated_at' => now()
+                'closedBy' => $alert->closedBy,
+                'closedtime' => $alert->closedtime,
+                'sendip' => $alert->sendip,
+                'alerttype' => $alert->alerttype,
+                'location' => $alert->location,
+                'priority' => $alert->priority,
+                'AlertUserStatus' => $alert->AlertUserStatus,
+                'ATMCode' => $alert->ATMCode,
+                'File_loc' => $alert->File_loc,
+                'cms_ip' => $alert->cms_ip
             ];
         }
 
         if (count($values) > 0) {
             DB::connection('pgsql')->table('ai_alerts')->insert($values);
+        }
+    }
+
+    protected function bulkInsertAiAliveAlerts($alerts)
+    {
+        $values = [];
+        foreach ($alerts as $alert) {
+            $values[] = [
+                'id' => $alert->id,
+                'panelid' => $alert->panelid,
+                'seqno' => $alert->seqno,
+                'zone' => $alert->zone,
+                'alarm' => $alert->alarm,
+                'createtime' => $alert->createtime,
+                'receivedtime' => $alert->receivedtime,
+                'comment' => $alert->comment,
+                'status' => $alert->status,
+                'sendtoclient' => $alert->sendtoclient,
+                'closedBy' => $alert->closedBy,
+                'closedtime' => $alert->closedtime,
+                'sendip' => $alert->sendip,
+                'alerttype' => $alert->alerttype,
+                'location' => $alert->location,
+                'priority' => $alert->priority,
+                'AlertUserStatus' => $alert->AlertUserStatus,
+                'ATMCode' => $alert->ATMCode,
+                'File_loc' => $alert->File_loc
+            ];
+        }
+
+        if (count($values) > 0) {
+            DB::connection('pgsql')->table('ai_alerts_alive')->insert($values);
         }
     }
 
@@ -342,10 +488,10 @@ class MySqlToPostgresSync
 
             do {
                 $sites = DB::connection('mysql')
-                          ->table('sites')
-                          ->where('SN', '>', $lastSyncedId)
-                          ->take($this->batchSize)
-                          ->get();
+                    ->table('sites')
+                    ->where('SN', '>', $lastSyncedId)
+                    ->take($this->batchSize)
+                    ->get();
 
                 if ($sites->isEmpty()) {
                     break;
@@ -443,9 +589,7 @@ class MySqlToPostgresSync
                 'dvr_port' => $site['dvr_port'],
                 'panel_port' => $site['panel_port'],
                 'server_ip' => $site['server_ip'],
-                'unique_id' => $site['unique_id'],
-                'created_at' => now(),
-                'updated_at' => now()
+                'unique_id' => $site['unique_id']
             ];
         }
 
@@ -460,7 +604,7 @@ class MySqlToPostgresSync
     public function syncReports($fromDate = null, $toDate = null)
     {
         $query = Report::query();
-        
+
         if ($fromDate) {
             $query->where('createtime', '>=', $fromDate);
         }
@@ -473,14 +617,14 @@ class MySqlToPostgresSync
 
         do {
             $reports = $query->where('id', '>', $lastSyncedId)
-                            ->take($this->batchSize)
-                            ->get();
+                ->take($this->batchSize)
+                ->get();
 
             if ($reports->isEmpty()) {
                 break;
             }
 
-            DB::connection('pgsql')->transaction(function() use ($reports) {
+            DB::connection('pgsql')->transaction(function () use ($reports) {
                 foreach ($reports as $report) {
                     PgReport::updateOrCreate(
                         ['id' => $report->id],
@@ -500,11 +644,12 @@ class MySqlToPostgresSync
     /**
      * Get last synced alert ID from monitoring table
      */
-    protected function getLastSyncedAlertId()
+    protected function getLastSyncedAlertId($tablename)
     {
         try {
             $status = DB::connection('pgsql')
                 ->table('alerts_sync_status')
+                ->where('tablename', '=', $tablename)
                 ->first();
 
             if (!$status) {
@@ -515,7 +660,9 @@ class MySqlToPostgresSync
                         'last_synced_id' => 0,
                         'last_synced_at' => null,
                         'created_at' => now(),
-                        'updated_at' => now()
+                        'updated_at' => now(),
+                        'tablename' => $tablename
+
                     ]);
                 return 0;
             }
@@ -532,13 +679,13 @@ class MySqlToPostgresSync
     /**
      * Update alerts sync status in monitoring table
      */
-    protected function updateAlertsSyncStatus($lastSyncedId)
+    protected function updateAlertsSyncStatus($lastSyncedId, $tablename)
     {
         try {
             DB::connection('pgsql')
                 ->table('alerts_sync_status')
                 ->updateOrInsert(
-                    ['id' => 1], // Always update the first record
+                    ['tablename' => $tablename], // Match by table name
                     [
                         'last_synced_id' => $lastSyncedId,
                         'last_synced_at' => now(),
@@ -548,8 +695,10 @@ class MySqlToPostgresSync
         } catch (Exception $e) {
             Log::error('Failed to update alerts sync status', [
                 'error' => $e->getMessage(),
-                'last_synced_id' => $lastSyncedId
+                'last_synced_id' => $lastSyncedId,
+                'tablename' => $tablename
             ]);
         }
     }
+
 }

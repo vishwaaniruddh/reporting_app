@@ -10,10 +10,12 @@ class Role extends Model
     use HasFactory;
 
     protected $fillable = ['name', 'description'];
+    protected $with = ['permissions'];
+
 
     public function permissions()
     {
-        return $this->belongsToMany(Permission::class);
+        return $this->belongsToMany(Permission::class)->withTimestamps();
     }
 
     public function users()
